@@ -1,78 +1,98 @@
 /**
- * CampusFlow - Storage Module
- * Manages reading and writing shared events and registrations data in LocalStorage.
+ * CampusFlow - LocalStorage Persistence Module (Phase 4)
+ * 
+ * Handles reading and writing shared events and registrations data in LocalStorage.
  */
 
 /**
- * Initializes LocalStorage on first launch with defaultEvents.
+ * Initializes LocalStorage on first run or loads active data.
  */
 function initializeStorage() {
-    if (!localStorage.getItem(STORAGE_KEYS.EVENTS)) {
-        console.log("Initializing default events in LocalStorage...");
-        saveEvents(defaultEvents);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.REGISTRATIONS)) {
-        console.log("Initializing empty registrations in LocalStorage...");
-        saveRegistrations([]);
+    try {
+        const storedEvents = localStorage.getItem(STORAGE_KEYS.EVENTS);
+        if (!storedEvents) {
+            saveEvents(initialEvents);
+            events = [...initialEvents];
+        } else {
+            events = JSON.parse(storedEvents);
+        }
+
+        const storedRegistrations = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
+        if (!storedRegistrations) {
+            saveRegistrations([]);
+            registrations = [];
+        } else {
+            registrations = JSON.parse(storedRegistrations);
+        }
+    } catch (e) {
+        console.error("Error accessing LocalStorage, falling back to in-memory state:", e);
+        events = [...initialEvents];
+        registrations = [];
     }
 }
 
 /**
- * Loads events from LocalStorage.
+ * Loads events from LocalStorage
  * @returns {Array} Array of event objects
  */
 function loadEvents() {
-    const rawData = localStorage.getItem(STORAGE_KEYS.EVENTS);
-    if (!rawData) {
-        initializeStorage();
-        return defaultEvents;
-    }
     try {
-        return JSON.parse(rawData);
+        const raw = localStorage.getItem(STORAGE_KEYS.EVENTS);
+        if (raw) {
+            return JSON.parse(raw);
+        }
     } catch (e) {
-        console.error("Error parsing events from LocalStorage:", e);
-        return defaultEvents;
+        console.error("Error loading events:", e);
+    }
+    return events || initialEvents;
+}
+
+/**
+ * Saves events array to LocalStorage
+ * @param {Array} eventList 
+ */
+function saveEvents(eventList) {
+    events = eventList;
+    try {
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(eventList));
+    } catch (e) {
+        console.error("Error saving events to LocalStorage:", e);
     }
 }
 
 /**
- * Saves events to LocalStorage.
- * @param {Array} events 
- */
-function saveEvents(events) {
-    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
-}
-
-/**
- * Loads registrations from LocalStorage.
+ * Loads registrations from LocalStorage
  * @returns {Array} Array of registration objects
  */
 function loadRegistrations() {
-    const rawData = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
-    if (!rawData) {
-        initializeStorage();
-        return [];
-    }
     try {
-        return JSON.parse(rawData);
+        const raw = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
+        if (raw) {
+            return JSON.parse(raw);
+        }
     } catch (e) {
-        console.error("Error parsing registrations from LocalStorage:", e);
-        return [];
+        console.error("Error loading registrations:", e);
+    }
+    return registrations || [];
+}
+
+/**
+ * Saves registrations array to LocalStorage
+ * @param {Array} regList 
+ */
+function saveRegistrations(regList) {
+    registrations = regList;
+    try {
+        localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(regList));
+    } catch (e) {
+        console.error("Error saving registrations to LocalStorage:", e);
     }
 }
 
 /**
- * Saves registrations to LocalStorage.
- * @param {Array} registrations 
- */
-function saveRegistrations(registrations) {
-    localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(registrations));
-}
-
-/**
- * Resets storage back to default initial state.
+ * Resets storage back to default initial state
  */
 function resetStorageToDefault() {
-    saveEvents(defaultEvents);
+    saveEvents(initialEvents);
     saveRegistrations([]);
 }
