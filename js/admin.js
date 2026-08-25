@@ -176,11 +176,14 @@ function handleEventFormSubmit(e) {
             name:            payload.name.trim(),
             category:        payload.category,
             date:            payload.date,
-            time:            '09:00 AM – 05:00 PM',
+            startTime:       '09:00',
+            endTime:         '17:00',
+            timeDisplay:     '09:00 AM – 05:00 PM',
             venue:           payload.venue.trim(),
             registrationFee: payload.registrationFee,
             totalSeats:      payload.totalSeats,
             availableSeats:  payload.totalSeats,
+            registeredCount: 0,
             description:     payload.description.trim(),
             status:          'Upcoming',
         });
@@ -247,7 +250,7 @@ function renderAdminRegistrationsTable() {
     if (!tbody) return;
 
     const registrations = loadRegistrations();
-    const events        = loadEvents();
+    const evts          = loadEvents();
 
     const term          = ((document.getElementById('adminRegSearch') || {}).value || '').toLowerCase().trim();
     const selEvent      = ((document.getElementById('adminRegEventFilter') || {}).value || 'All');
@@ -271,7 +274,7 @@ function renderAdminRegistrationsTable() {
     }
 
     tbody.innerHTML = filtered.map(reg => {
-        const evt        = events.find(e => e.id === reg.eventId) || { name: 'Deleted Event', date: '' };
+        const evt        = evts.find(e => e.id === reg.eventId) || { name: 'Deleted Event', date: '' };
         const cancelled  = reg.status === 'Cancelled';
 
         return `
@@ -326,6 +329,10 @@ function adminCancelRegistration(regId) {
             events[evtIdx].totalSeats,
             events[evtIdx].availableSeats + 1
         );
+        // Keep registeredCount in sync with student portal schema
+        if (typeof events[evtIdx].registeredCount === 'number') {
+            events[evtIdx].registeredCount = Math.max(0, events[evtIdx].registeredCount - 1);
+        }
         saveEvents(events);
     }
 

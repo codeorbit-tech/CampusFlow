@@ -53,15 +53,11 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("CampusFlow Student Portal initialized.");
     }
 
-    // 3. Initialize Admin Portal (if present on page)
-    const adminEventSearch = document.getElementById("adminEventSearch");
-    if (adminEventSearch) {
-        if (typeof setupAdminEventListeners === "function") {
-            setupAdminEventListeners();
-        }
-        if (typeof initAdminView === "function") {
-            initAdminView();
-        }
+    // 3. Initialize Admin Portal (detected by sidebar element)
+    const adminSidebar = document.querySelector(".sidebar");
+    if (adminSidebar) {
+        setupAdminEventListeners();
+        initAdminView();
         console.log("CampusFlow Admin Portal initialized.");
     }
 
@@ -86,3 +82,41 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+/**
+ * Admin Portal Event Listeners
+ * Wires search, filters, and form submissions for admin.html.
+ */
+function setupAdminEventListeners() {
+    // Topbar global search — proxies to whichever tab is active
+    const globalSearch = document.getElementById('globalSearch');
+    if (globalSearch) {
+        globalSearch.addEventListener('input', () => {
+            const activePanel = document.querySelector('.tab-panel.active');
+            if (!activePanel) return;
+            if (activePanel.id === 'tabPanel-dashboard') {
+                const el = document.getElementById('adminEventSearch');
+                if (el) { el.value = globalSearch.value; renderAdminEventsTable(); }
+            } else {
+                const el = document.getElementById('adminRegSearch');
+                if (el) { el.value = globalSearch.value; renderAdminRegistrationsTable(); }
+            }
+        });
+    }
+
+    // Event table search
+    const evtSearch = document.getElementById('adminEventSearch');
+    if (evtSearch) evtSearch.addEventListener('input', renderAdminEventsTable);
+
+    // Event Add/Edit form
+    const eventForm = document.getElementById('eventForm');
+    if (eventForm) eventForm.addEventListener('submit', handleEventFormSubmit);
+
+    // Registration search and filters
+    const regSearch  = document.getElementById('adminRegSearch');
+    const regEvent   = document.getElementById('adminRegEventFilter');
+    const regStatus  = document.getElementById('adminRegStatusFilter');
+    if (regSearch)  regSearch.addEventListener('input', renderAdminRegistrationsTable);
+    if (regEvent)   regEvent.addEventListener('change', renderAdminRegistrationsTable);
+    if (regStatus)  regStatus.addEventListener('change', renderAdminRegistrationsTable);
+}
