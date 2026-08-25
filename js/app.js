@@ -49,6 +49,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (typeof setupRegistrationListeners === "function") {
             setupRegistrationListeners();
         }
+        if (typeof renderMyRegistrations === "function") {
+            renderMyRegistrations();
+        }
         setupNavigation();
         console.log("CampusFlow Student Portal initialized.");
     }
@@ -74,6 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (document.getElementById("events-grid")) {
                 if (typeof applyEventFilters === "function") applyEventFilters();
                 if (typeof updateStatisticsDisplay === "function") updateStatisticsDisplay();
+                if (typeof renderMyRegistrations === "function") renderMyRegistrations();
             }
 
             if (document.getElementById("adminEventSearch")) {

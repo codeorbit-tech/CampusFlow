@@ -1,5 +1,5 @@
 /**
- * CampusFlow - Registration & Smart Seat Management Logic (Phase 4)
+ * CampusFlow - Registration & Smart Seat Management Logic (Phase 4 & 5)
  * 
  * Implements:
  * 1. Client-side form validation
@@ -8,6 +8,7 @@
  * 4. Smart Event Time-Conflict Detection (USP)
  * 5. Dynamic seat decrement & increment on registration/cancellation
  * 6. LocalStorage persistence integration
+ * 7. My Registrations Dashboard dynamic rendering & live cancellation (Phase 5)
  */
 
 /**
@@ -398,6 +399,7 @@ function submitRegistration(e) {
     // Immediately update UI without page reload
     applyEventFilters();
     updateStatisticsDisplay();
+    renderMyRegistrations();
 
     // Populate success view in modal
     const formView = document.getElementById("registration-form-view");
@@ -443,16 +445,117 @@ function cancelRegistration(registrationId) {
     saveEvents(events);
     saveRegistrations(registrations);
 
-    // Update UI
+    // Update UI across all sections immediately
     applyEventFilters();
     updateStatisticsDisplay();
+    renderMyRegistrations();
 
     console.log(`Registration ${registrationId} cancelled. Seat restored for ${event ? event.name : 'event'}.`);
     return true;
 }
 
 /**
- * Sets up all event listeners for the registration modal and form
+ * Renders all active student registrations into the My Registrations dashboard section.
+ */
+function renderMyRegistrations() {
+    const container = document.getElementById("my-registrations-container");
+    if (!container) return;
+
+    // Filter to active registered passes
+    const activeRegistrations = registrations.filter(r => r.status === "Registered");
+
+    if (activeRegistrations.length === 0) {
+        container.innerHTML = `
+            <div class="no-registrations-state">
+                <div class="no-events-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                </div>
+                <h3 class="no-events-title">No registrations yet</h3>
+                <p class="no-events-subtitle">You haven't reserved a seat for any campus events yet.</p>
+                <a href="#events" class="btn btn-primary" style="margin-top: 0.85rem;">Browse Available Events</a>
+            </div>
+        `;
+        return;
+    }
+
+    const cardsHtml = activeRegistrations.map(reg => {
+        const event = getEventById(reg.eventId);
+        const eventName = event ? event.name : "Event " + reg.eventId;
+        const category = event ? event.category : "Campus";
+        const formattedDate = event ? formatDate(event.date) : "";
+        const timeText = event ? (event.timeDisplay || (event.startTime && event.endTime ? `${event.startTime} – ${event.endTime}` : "")) : "";
+        const venue = event ? event.venue : "Campus";
+        const feeFormatted = event ? formatFee(event.registrationFee) : "₹0";
+        const categoryClass = `category-${category.toLowerCase().replace(/\s+/g, "-")}`;
+
+        return `
+            <article class="registration-card" data-registration-id="${reg.registrationId}">
+                <div class="registration-card-header">
+                    <div class="reg-meta-left">
+                        <span class="reg-id-badge">${reg.registrationId}</span>
+                        <span class="category-badge ${categoryClass}">${category}</span>
+                    </div>
+                    <span class="status-badge status-badge-success">Registered</span>
+                </div>
+
+                <div class="registration-card-body">
+                    <h3 class="registration-event-title">${eventName}</h3>
+                    <div class="reg-student-info">
+                        <span>Attendee: </span>
+                        <strong>${reg.studentName}</strong>
+                        <span>(${reg.registerNumber})</span>
+                    </div>
+
+                    <div class="event-meta-list">
+                        <div class="event-meta-item">
+                            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                            <span>${formattedDate}${timeText ? ` &bull; ${timeText}` : ''}</span>
+                        </div>
+
+                        <div class="event-meta-item">
+                            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            <span>${venue}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="registration-card-footer">
+                    <div class="event-pricing">
+                        <span class="price-label">Fee Paid</span>
+                        <span class="price-value">${feeFormatted}</span>
+                    </div>
+
+                    <button 
+                        type="button" 
+                        class="btn btn-cancel-reg" 
+                        data-reg-id="${reg.registrationId}"
+                    >
+                        Cancel Registration
+                    </button>
+                </div>
+            </article>
+        `;
+    }).join("");
+
+    container.innerHTML = `<div class="registrations-grid">${cardsHtml}</div>`;
+}
+
+/**
+ * Sets up all event listeners for the registration modal, form, and My Registrations
  */
 function setupRegistrationListeners() {
     // 1. Delegate click on Register buttons in events grid
@@ -469,7 +572,21 @@ function setupRegistrationListeners() {
         });
     }
 
-    // 2. Close modal buttons
+    // 2. Delegate click on Cancel Registration buttons in My Registrations
+    const myRegContainer = document.getElementById("my-registrations-container");
+    if (myRegContainer) {
+        myRegContainer.addEventListener("click", (e) => {
+            const cancelBtn = e.target.closest(".btn-cancel-reg");
+            if (cancelBtn) {
+                const regId = cancelBtn.getAttribute("data-reg-id");
+                if (regId) {
+                    cancelRegistration(regId);
+                }
+            }
+        });
+    }
+
+    // 3. Close modal buttons
     const closeBtn = document.getElementById("modal-close-btn");
     const cancelBtn = document.getElementById("modal-cancel-btn");
     const doneBtn = document.getElementById("modal-done-btn");
@@ -478,7 +595,7 @@ function setupRegistrationListeners() {
     if (cancelBtn) cancelBtn.addEventListener("click", closeRegistrationModal);
     if (doneBtn) doneBtn.addEventListener("click", closeRegistrationModal);
 
-    // 3. Click outside modal dialog to close
+    // 4. Click outside modal dialog to close
     const modal = document.getElementById("registration-modal");
     if (modal) {
         modal.addEventListener("click", (e) => {
@@ -488,20 +605,20 @@ function setupRegistrationListeners() {
         });
     }
 
-    // 4. Escape key press to close modal
+    // 5. Escape key press to close modal
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && modal && modal.classList.contains("modal--open")) {
             closeRegistrationModal();
         }
     });
 
-    // 5. Form submission
+    // 6. Form submission
     const form = document.getElementById("registration-form");
     if (form) {
         form.addEventListener("submit", submitRegistration);
     }
 
-    // 6. Clear individual field errors on typing
+    // 7. Clear individual field errors on typing
     const inputs = ["reg-student-name", "reg-register-number", "reg-email", "reg-phone"];
     inputs.forEach(id => {
         const input = document.getElementById(id);
