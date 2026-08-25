@@ -1,14 +1,14 @@
 /**
- * CampusFlow - Admin Controller Module
- * Handles Dashboard Statistics, Event Management (CRUD), and Registration Management.
+ * CampusFlow — Admin Controller
+ * Dashboard stats, Event CRUD, Registration management.
+ * All data read/written via shared LocalStorage keys (storage.js).
  */
 
 let activeDeleteEventId = null;
-let activeEditEventId = null;
+let activeEditEventId   = null;
 
-/**
- * Initializes the Admin Dashboard.
- */
+/* ── INIT ─────────────────────────────────────────────────── */
+
 function initAdminView() {
     updateAdminStats();
     renderAdminEventsTable();
@@ -16,425 +16,339 @@ function initAdminView() {
     populateAdminEventFilterDropdown();
 }
 
-/**
- * Calculates and updates Admin Dashboard Statistics dynamically from LocalStorage.
- */
+/* ── STATS ────────────────────────────────────────────────── */
+
 function updateAdminStats() {
-    const events = loadEvents();
+    const events        = loadEvents();
     const registrations = loadRegistrations();
 
-    // 1. Total Events
-    const totalEvents = events.length;
+    const totalEvents      = events.length;
+    const activeRegs       = registrations.filter(r => r.status === 'Registered').length;
+    const availableSeats   = events.reduce((s, e) => s + (Number(e.availableSeats) || 0), 0);
+    const cancelledRegs    = registrations.filter(r => r.status === 'Cancelled').length;
 
-    // 2. Total Registrations (Active)
-    const activeRegistrations = registrations.filter(r => r.status === 'Registered').length;
-
-    // 3. Available Seats across all events
-    const availableSeatsSum = events.reduce((acc, curr) => acc + (Number(curr.availableSeats) || 0), 0);
-
-    // 4. Cancelled Registrations
-    const cancelledRegistrations = registrations.filter(r => r.status === 'Cancelled').length;
-
-    // DOM Elements update
-    const elTotalEvents = document.getElementById('statTotalEvents');
-    const elTotalRegs = document.getElementById('statTotalRegistrations');
-    const elAvailableSeats = document.getElementById('statAvailableSeats');
-    const elCancelledRegs = document.getElementById('statCancelledRegistrations');
-
-    if (elTotalEvents) elTotalEvents.textContent = totalEvents;
-    if (elTotalRegs) elTotalRegs.textContent = activeRegistrations;
-    if (elAvailableSeats) elAvailableSeats.textContent = availableSeatsSum;
-    if (elCancelledRegs) elCancelledRegs.textContent = cancelledRegistrations;
+    setText('statTotalEvents',           totalEvents);
+    setText('statTotalRegistrations',    activeRegs);
+    setText('statAvailableSeats',        availableSeats);
+    setText('statCancelledRegistrations',cancelledRegs);
 }
 
-/**
- * Renders the Admin Events Table.
- */
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+}
+
+/* ── EVENTS TABLE ─────────────────────────────────────────── */
+
 function renderAdminEventsTable() {
     const tbody = document.getElementById('adminEventsTableBody');
     if (!tbody) return;
 
-    const events = loadEvents();
+    const events        = loadEvents();
     const registrations = loadRegistrations();
-    const searchInput = document.getElementById('adminEventSearch');
-    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const search        = (document.getElementById('adminEventSearch') || {}).value || '';
+    const term          = search.toLowerCase().trim();
 
-    const filteredEvents = events.filter(e => 
-        e.name.toLowerCase().includes(searchTerm) ||
-        e.category.toLowerCase().includes(searchTerm) ||
-        e.venue.toLowerCase().includes(searchTerm)
+    const filtered = events.filter(e =>
+        e.name.toLowerCase().includes(term) ||
+        e.category.toLowerCase().includes(term) ||
+        e.venue.toLowerCase().includes(term)
     );
 
-    if (filteredEvents.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="empty-state" style="padding: 40px; text-align: center;">
-                    <p style="color: var(--text-muted);">No events found matching your criteria.</p>
-                </td>
-            </tr>
-        `;
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No events found.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = filteredEvents.map(evt => {
-        const activeRegsCount = registrations.filter(r => r.eventId === evt.id && r.status === 'Registered').length;
+    tbody.innerHTML = filtered.map(evt => {
+        const booked     = registrations.filter(r => r.eventId === evt.id && r.status === 'Registered').length;
+        const isFull     = evt.availableSeats <= 0;
+        const isLow      = evt.availableSeats > 0 && evt.availableSeats < 10;
+        const seatClass  = isFull ? 'seat-none' : (isLow ? 'seat-low' : 'seat-ok');
+        const feeText    = evt.registrationFee === 0 ? 'Free' : `₹${evt.registrationFee}`;
         const badgeClass = getCategoryBadgeClass(evt.category);
-        const feeText = evt.registrationFee === 0 ? 'FREE' : `₹${evt.registrationFee}`;
-        const isFull = evt.availableSeats <= 0;
 
         return `
-            <tr>
-                <td><strong style="color: #818cf8;">${evt.id}</strong></td>
-                <td>
-                    <div class="table-cell-main">${escapeHTML(evt.name)}</div>
-                    <div class="table-subtext">${formatDate(evt.date)}</div>
-                </td>
-                <td><span class="badge ${badgeClass}">${evt.category}</span></td>
-                <td>${escapeHTML(evt.venue)}</td>
-                <td><strong>${feeText}</strong></td>
-                <td>
-                    <div>
-                        <strong style="color: ${isFull ? 'var(--danger-color)' : 'var(--success-color)'};">
-                            ${evt.availableSeats} / ${evt.totalSeats}
-                        </strong>
-                        <div class="table-subtext">${activeRegsCount} booked</div>
-                    </div>
-                </td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn-icon edit" title="Edit Event" onclick="openEditEventModal('${evt.id}')">
-                            ✏️
-                        </button>
-                        <button class="btn-icon delete" title="Delete Event" onclick="openDeleteConfirmModal('${evt.id}')">
-                            🗑️
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
+        <tr>
+            <td><span class="cell-id">${evt.id}</span></td>
+            <td>
+                <div class="cell-main">${escapeHTML(evt.name)}</div>
+                <div class="cell-sub">${formatDate(evt.date)}</div>
+            </td>
+            <td><span class="badge ${badgeClass}">${evt.category}</span></td>
+            <td style="color: var(--text-2);">${escapeHTML(evt.venue)}</td>
+            <td style="font-weight:600;">${feeText}</td>
+            <td>
+                <span class="${seatClass}">${evt.availableSeats} / ${evt.totalSeats}</span>
+                <div class="cell-sub">${booked} booked</div>
+            </td>
+            <td>
+                <div class="action-group">
+                    <button class="act-btn edit" title="Edit" onclick="openEditEventModal('${evt.id}')">
+                        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </button>
+                    <button class="act-btn destroy" title="Delete" onclick="openDeleteConfirmModal('${evt.id}')">
+                        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
     }).join('');
 }
 
-/**
- * Opens Add Event Modal.
- */
+/* ── ADD / EDIT EVENT MODAL ───────────────────────────────── */
+
 function openAddEventModal() {
     activeEditEventId = null;
-    const form = document.getElementById('eventForm');
-    if (form) form.reset();
-    document.getElementById('eventModalTitle').textContent = 'Add New Campus Event';
-    
-    // Set default date to today or future date
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('eventDate').value = today;
-
-    const modal = document.getElementById('eventModal');
-    if (modal) modal.classList.add('active');
+    document.getElementById('eventForm').reset();
+    document.getElementById('eventModalTitle').textContent = 'Add Event';
+    document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('eventModal').classList.add('active');
 }
 
-/**
- * Opens Edit Event Modal with pre-filled fields.
- */
 function openEditEventModal(eventId) {
-    const events = loadEvents();
-    const evt = events.find(e => e.id === eventId);
+    const evt = loadEvents().find(e => e.id === eventId);
     if (!evt) return;
 
     activeEditEventId = eventId;
-    document.getElementById('eventModalTitle').textContent = `Edit Event: ${evt.name}`;
-    
-    document.getElementById('eventName').value = evt.name;
-    document.getElementById('eventCategory').value = evt.category;
-    document.getElementById('eventDate').value = evt.date;
-    document.getElementById('eventVenue').value = evt.venue;
-    document.getElementById('eventFee').value = evt.registrationFee;
-    document.getElementById('eventSeats').value = evt.totalSeats;
+    document.getElementById('eventModalTitle').textContent = 'Edit Event';
+    document.getElementById('eventName').value        = evt.name;
+    document.getElementById('eventCategory').value    = evt.category;
+    document.getElementById('eventDate').value        = evt.date;
+    document.getElementById('eventVenue').value       = evt.venue;
+    document.getElementById('eventFee').value         = evt.registrationFee;
+    document.getElementById('eventSeats').value       = evt.totalSeats;
     document.getElementById('eventDescription').value = evt.description || '';
-
-    const modal = document.getElementById('eventModal');
-    if (modal) modal.classList.add('active');
+    document.getElementById('eventModal').classList.add('active');
 }
 
-/**
- * Closes Add/Edit Event Modal.
- */
 function closeEventModal() {
-    const modal = document.getElementById('eventModal');
-    if (modal) modal.classList.remove('active');
+    document.getElementById('eventModal').classList.remove('active');
     activeEditEventId = null;
 }
 
-/**
- * Handles Form Submission for Add or Edit Event.
- */
-function handleEventFormSubmit(event) {
-    event.preventDefault();
+function handleEventFormSubmit(e) {
+    e.preventDefault();
 
-    const name = document.getElementById('eventName').value;
-    const category = document.getElementById('eventCategory').value;
-    const date = document.getElementById('eventDate').value;
-    const venue = document.getElementById('eventVenue').value;
-    const registrationFee = Number(document.getElementById('eventFee').value) || 0;
-    const totalSeats = Number(document.getElementById('eventSeats').value) || 0;
-    const description = document.getElementById('eventDescription').value;
+    const payload = {
+        name:            document.getElementById('eventName').value,
+        category:        document.getElementById('eventCategory').value,
+        date:            document.getElementById('eventDate').value,
+        venue:           document.getElementById('eventVenue').value,
+        registrationFee: Number(document.getElementById('eventFee').value)  || 0,
+        totalSeats:      Number(document.getElementById('eventSeats').value) || 0,
+        description:     document.getElementById('eventDescription').value,
+    };
 
-    const eventPayload = { name, category, date, venue, registrationFee, totalSeats, description };
+    const validation = validateEventForm(payload);
+    if (!validation.isValid) { showToast(validation.message, 'danger'); return; }
 
-    const validation = validateEventForm(eventPayload);
-    if (!validation.isValid) {
-        showToast(validation.message, "danger");
-        return;
-    }
-
-    const events = loadEvents();
+    let events = loadEvents();
 
     if (activeEditEventId) {
-        // Edit Mode
-        const index = events.findIndex(e => e.id === activeEditEventId);
-        if (index !== -1) {
-            const existingEvt = events[index];
-            const bookedSeats = existingEvt.totalSeats - existingEvt.availableSeats;
-            
-            // Calculate new available seats preserving existing bookings
-            const newAvailableSeats = Math.max(0, totalSeats - bookedSeats);
-
-            events[index] = {
-                ...existingEvt,
-                name: name.trim(),
-                category: category,
-                date: date,
-                venue: venue.trim(),
-                registrationFee: registrationFee,
-                totalSeats: totalSeats,
-                availableSeats: newAvailableSeats,
-                description: description.trim()
+        const idx = events.findIndex(e => e.id === activeEditEventId);
+        if (idx !== -1) {
+            const old       = events[idx];
+            const booked    = old.totalSeats - old.availableSeats;
+            events[idx] = {
+                ...old,
+                ...payload,
+                name:           payload.name.trim(),
+                venue:          payload.venue.trim(),
+                description:    payload.description.trim(),
+                availableSeats: Math.max(0, payload.totalSeats - booked),
             };
-
-            saveEvents(events);
-            showToast(`Event "${name}" updated successfully!`, "success");
         }
+        showToast(`"${payload.name}" updated.`, 'success');
     } else {
-        // Add Mode
-        const newId = 'EVT' + String(events.length + 1).padStart(3, '0');
-        const newEvent = {
-            id: newId,
-            name: name.trim(),
-            category: category,
-            date: date,
-            time: "09:00 AM - 05:00 PM",
-            venue: venue.trim(),
-            registrationFee: registrationFee,
-            totalSeats: totalSeats,
-            availableSeats: totalSeats, // Initially all seats available
-            description: description.trim(),
-            status: "Upcoming"
-        };
+        // Generate unique ID even if events were deleted
+        const existing = events.map(e => e.id);
+        let n = events.length + 1;
+        let newId;
+        do { newId = 'EVT' + String(n).padStart(3, '0'); n++; } while (existing.includes(newId));
 
-        events.push(newEvent);
-        saveEvents(events);
-        showToast(`New Event "${name}" created successfully!`, "success");
+        events.push({
+            id:              newId,
+            name:            payload.name.trim(),
+            category:        payload.category,
+            date:            payload.date,
+            time:            '09:00 AM – 05:00 PM',
+            venue:           payload.venue.trim(),
+            registrationFee: payload.registrationFee,
+            totalSeats:      payload.totalSeats,
+            availableSeats:  payload.totalSeats,
+            description:     payload.description.trim(),
+            status:          'Upcoming',
+        });
+        showToast(`"${payload.name}" created.`, 'success');
     }
 
+    saveEvents(events);
     closeEventModal();
     initAdminView();
 }
 
-/**
- * Opens Delete Confirmation Modal with active registration warnings.
- */
+/* ── DELETE EVENT ─────────────────────────────────────────── */
+
 function openDeleteConfirmModal(eventId) {
-    const events = loadEvents();
+    const events        = loadEvents();
     const registrations = loadRegistrations();
-    const evt = events.find(e => e.id === eventId);
+    const evt           = events.find(e => e.id === eventId);
     if (!evt) return;
 
     activeDeleteEventId = eventId;
-    const activeRegsCount = registrations.filter(r => r.eventId === eventId && r.status === 'Registered').length;
-
     document.getElementById('deleteEventName').textContent = evt.name;
-    const warningBox = document.getElementById('deleteWarningContainer');
 
-    if (activeRegsCount > 0) {
+    const activeCount  = registrations.filter(r => r.eventId === eventId && r.status === 'Registered').length;
+    const warningBox   = document.getElementById('deleteWarningContainer');
+
+    if (activeCount > 0) {
         warningBox.style.display = 'block';
-        warningBox.innerHTML = `
-            <strong>⚠️ Warning:</strong> This event currently has <strong>${activeRegsCount} active registration(s)</strong>. 
-            Deleting this event will mark all associated registrations as cancelled.
-        `;
+        warningBox.innerHTML = `<strong>${activeCount} active registration(s)</strong> will be marked cancelled.`;
     } else {
         warningBox.style.display = 'none';
     }
 
-    const modal = document.getElementById('deleteModal');
-    if (modal) modal.classList.add('active');
+    document.getElementById('deleteModal').classList.add('active');
 }
 
-/**
- * Closes Delete Modal.
- */
 function closeDeleteModal() {
-    const modal = document.getElementById('deleteModal');
-    if (modal) modal.classList.remove('active');
+    document.getElementById('deleteModal').classList.remove('active');
     activeDeleteEventId = null;
 }
 
-/**
- * Confirms deletion of event and updates shared LocalStorage.
- */
 function confirmDeleteEvent() {
     if (!activeDeleteEventId) return;
 
-    let events = loadEvents();
+    let events        = loadEvents();
     let registrations = loadRegistrations();
 
-    // 1. Remove event from events[]
     events = events.filter(e => e.id !== activeDeleteEventId);
-    saveEvents(events);
+    registrations = registrations.map(r =>
+        r.eventId === activeDeleteEventId ? { ...r, status: 'Cancelled' } : r
+    );
 
-    // 2. Mark associated registrations as Cancelled
-    registrations = registrations.map(r => {
-        if (r.eventId === activeDeleteEventId) {
-            return { ...r, status: 'Cancelled' };
-        }
-        return r;
-    });
+    saveEvents(events);
     saveRegistrations(registrations);
 
     closeDeleteModal();
-    showToast("Event deleted successfully.", "success");
+    showToast('Event deleted.', 'success');
     initAdminView();
 }
 
-/**
- * Renders Admin Registrations Management Table.
- */
+/* ── REGISTRATIONS TABLE ──────────────────────────────────── */
+
 function renderAdminRegistrationsTable() {
     const tbody = document.getElementById('adminRegistrationsTableBody');
     if (!tbody) return;
 
     const registrations = loadRegistrations();
-    const events = loadEvents();
+    const events        = loadEvents();
 
-    const searchInput = document.getElementById('adminRegSearch');
-    const eventFilter = document.getElementById('adminRegEventFilter');
-    const statusFilter = document.getElementById('adminRegStatusFilter');
-
-    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
-    const selectedEvent = eventFilter ? eventFilter.value : 'All';
-    const selectedStatus = statusFilter ? statusFilter.value : 'All';
+    const term          = ((document.getElementById('adminRegSearch') || {}).value || '').toLowerCase().trim();
+    const selEvent      = ((document.getElementById('adminRegEventFilter') || {}).value || 'All');
+    const selStatus     = ((document.getElementById('adminRegStatusFilter') || {}).value || 'All');
 
     const filtered = registrations.filter(r => {
-        const evt = events.find(e => e.id === r.eventId) || { name: '' };
-        const matchesSearch = r.studentName.toLowerCase().includes(searchTerm) ||
-                              r.registerNumber.toLowerCase().includes(searchTerm) ||
-                              r.registrationId.toLowerCase().includes(searchTerm) ||
-                              r.email.toLowerCase().includes(searchTerm);
-        const matchesEvent = selectedEvent === 'All' || r.eventId === selectedEvent;
-        const matchesStatus = selectedStatus === 'All' || r.status === selectedStatus;
-
-        return matchesSearch && matchesEvent && matchesStatus;
+        const matchSearch = (
+            r.studentName.toLowerCase().includes(term) ||
+            r.registerNumber.toLowerCase().includes(term) ||
+            r.email.toLowerCase().includes(term) ||
+            r.registrationId.toLowerCase().includes(term)
+        );
+        const matchEvent  = selEvent  === 'All' || r.eventId === selEvent;
+        const matchStatus = selStatus === 'All' || r.status  === selStatus;
+        return matchSearch && matchEvent && matchStatus;
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="empty-state" style="padding: 40px; text-align: center;">
-                    <p style="color: var(--text-muted);">No registrations found.</p>
-                </td>
-            </tr>
-        `;
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No registrations found.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = filtered.map(reg => {
-        const evt = events.find(e => e.id === reg.eventId) || { name: 'Deleted Event', date: '' };
-        const isCancelled = reg.status === 'Cancelled';
+        const evt        = events.find(e => e.id === reg.eventId) || { name: 'Deleted Event', date: '' };
+        const cancelled  = reg.status === 'Cancelled';
 
         return `
-            <tr>
-                <td><strong style="color: var(--gold-accent);">${reg.registrationId}</strong></td>
-                <td>
-                    <div class="table-cell-main">${escapeHTML(reg.studentName)}</div>
-                    <div class="table-subtext">${escapeHTML(reg.email)} | ${escapeHTML(reg.phone || '')}</div>
-                </td>
-                <td><strong>${escapeHTML(reg.registerNumber)}</strong></td>
-                <td>
-                    <div class="table-cell-main">${escapeHTML(evt.name)}</div>
-                    <div class="table-subtext">ID: ${reg.eventId}</div>
-                </td>
-                <td>${formatDate(evt.date)}</td>
-                <td>
-                    <span class="badge ${isCancelled ? 'badge-cancelled' : 'badge-registered'}">
-                        ${reg.status}
-                    </span>
-                </td>
-                <td>
-                    ${!isCancelled ? `
-                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 4px 10px; color: #f87171; border-color: rgba(239, 68, 68, 0.4);"
-                                onclick="adminCancelRegistration('${reg.registrationId}')">
-                            Cancel
-                        </button>
-                    ` : '<span style="color: var(--text-muted); font-size: 0.8rem;">No actions</span>'}
-                </td>
-            </tr>
-        `;
+        <tr>
+            <td><span class="cell-id">${reg.registrationId}</span></td>
+            <td>
+                <div class="cell-main">${escapeHTML(reg.studentName)}</div>
+                <div class="cell-sub">${escapeHTML(reg.email)}</div>
+            </td>
+            <td style="font-weight:600; color:var(--text-2);">${escapeHTML(reg.registerNumber)}</td>
+            <td>
+                <div class="cell-main">${escapeHTML(evt.name)}</div>
+                <div class="cell-sub">${evt.id || ''}</div>
+            </td>
+            <td style="color:var(--text-2);">${formatDate(evt.date)}</td>
+            <td><span class="badge ${cancelled ? 'badge-cancelled' : 'badge-registered'}">${reg.status}</span></td>
+            <td>
+                ${!cancelled ? `
+                <button class="btn btn-secondary" style="font-size:11.5px; padding:4px 10px; color:var(--red); border-color:var(--red-border);"
+                        onclick="adminCancelRegistration('${reg.registrationId}')">
+                    Cancel
+                </button>` : `<span style="color:var(--text-3); font-size:11.5px;">—</span>`}
+            </td>
+        </tr>`;
     }).join('');
 }
 
-/**
- * Populates event filter dropdown for registration management.
- */
 function populateAdminEventFilterDropdown() {
-    const dropdown = document.getElementById('adminRegEventFilter');
-    if (!dropdown) return;
-
+    const dd = document.getElementById('adminRegEventFilter');
+    if (!dd) return;
     const events = loadEvents();
-    dropdown.innerHTML = `<option value="All">All Events</option>` + 
+    dd.innerHTML = `<option value="All">All events</option>` +
         events.map(e => `<option value="${e.id}">${escapeHTML(e.name)}</option>`).join('');
 }
 
-/**
- * Admin cancels student registration and releases seat.
- */
 function adminCancelRegistration(regId) {
-    if (!confirm(`Are you sure you want to cancel registration ${regId}?`)) return;
+    if (!confirm(`Cancel registration ${regId}?`)) return;
 
-    const registrations = loadRegistrations();
-    const events = loadEvents();
+    let registrations = loadRegistrations();
+    let events        = loadEvents();
 
-    const regIndex = registrations.findIndex(r => r.registrationId === regId);
-    if (regIndex === -1) return;
+    const idx = registrations.findIndex(r => r.registrationId === regId);
+    if (idx === -1 || registrations[idx].status === 'Cancelled') return;
 
-    const targetReg = registrations[regIndex];
-    if (targetReg.status === 'Cancelled') return;
-
-    // Mark registration status as Cancelled
-    registrations[regIndex].status = 'Cancelled';
+    const targetEventId = registrations[idx].eventId;
+    registrations[idx].status = 'Cancelled';
     saveRegistrations(registrations);
 
-    // Release seat back to event
-    const eventIndex = events.findIndex(e => e.id === targetReg.eventId);
-    if (eventIndex !== -1) {
-        events[eventIndex].availableSeats = Math.min(
-            events[eventIndex].totalSeats,
-            events[eventIndex].availableSeats + 1
+    const evtIdx = events.findIndex(e => e.id === targetEventId);
+    if (evtIdx !== -1) {
+        events[evtIdx].availableSeats = Math.min(
+            events[evtIdx].totalSeats,
+            events[evtIdx].availableSeats + 1
         );
         saveEvents(events);
     }
 
-    showToast(`Registration ${regId} cancelled and seat released.`, "success");
+    showToast(`Registration ${regId} cancelled. Seat released.`, 'success');
     initAdminView();
 }
 
-/**
- * Admin Navigation Tabs Switcher
- */
-function switchAdminTab(tabName) {
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+/* ── TAB SWITCHING ────────────────────────────────────────── */
 
-    const activeBtn = document.getElementById(`tabBtn-${tabName}`);
-    const activePanel = document.getElementById(`tabPanel-${tabName}`);
+function switchAdminTab(tab) {
+    // Sidebar buttons
+    document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+    const map = { dashboard: 0, registrations: 1 };
+    const btns = document.querySelectorAll('.sidebar-btn');
+    if (btns[map[tab]]) btns[map[tab]].classList.add('active');
 
-    if (activeBtn) activeBtn.classList.add('active');
-    if (activePanel) activePanel.classList.add('active');
+    // Panels
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const panel = document.getElementById(`tabPanel-${tab}`);
+    if (panel) panel.classList.add('active');
+
+    // Topbar title
+    const titles = { dashboard: 'Overview', registrations: 'Registrations' };
+    const titleEl = document.getElementById('topbarTitle');
+    if (titleEl) titleEl.textContent = titles[tab] || 'Overview';
 }

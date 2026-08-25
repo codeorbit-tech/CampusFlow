@@ -1,7 +1,5 @@
 /**
  * CampusFlow — Admin Application Entry Point
- * Initializes storage, renders admin UI, and registers event listeners.
- * The student portal (index.html) is handled by a separate developer.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,8 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupAdminEventListeners();
     initAdminView();
 
-    // Cross-tab sync: if the student portal (running in another tab) updates
-    // LocalStorage, the admin dashboard re-renders automatically.
+    // Cross-tab sync with student portal
     window.addEventListener('storage', (event) => {
         if (event.key === STORAGE_KEYS.EVENTS || event.key === STORAGE_KEYS.REGISTRATIONS) {
             initAdminView();
@@ -18,15 +15,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/**
- * Registers all event listeners for the Admin portal.
- */
 function setupAdminEventListeners() {
-    // Event search
+    // Topbar global search — searches whichever tab is active
+    const globalSearch = document.getElementById('globalSearch');
+    if (globalSearch) {
+        globalSearch.addEventListener('input', () => {
+            const active = document.querySelector('.tab-panel.active');
+            if (!active) return;
+            if (active.id === 'tabPanel-dashboard') {
+                const el = document.getElementById('adminEventSearch');
+                if (el) { el.value = globalSearch.value; renderAdminEventsTable(); }
+            } else {
+                const el = document.getElementById('adminRegSearch');
+                if (el) { el.value = globalSearch.value; renderAdminRegistrationsTable(); }
+            }
+        });
+    }
+
+    // Event table search
     const eventSearch = document.getElementById('adminEventSearch');
     if (eventSearch) eventSearch.addEventListener('input', renderAdminEventsTable);
 
-    // Event form (Add / Edit)
+    // Event form
     const eventForm = document.getElementById('eventForm');
     if (eventForm) eventForm.addEventListener('submit', handleEventFormSubmit);
 
