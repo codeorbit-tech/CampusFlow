@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusFlow — Campus Event Management</title>
+    <meta name="description" content="Discover and register for upcoming campus events — hackathons, workshops, cultural nights, and more.">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="brand-logo">
+                <div class="logo-icon">CF</div>
+                CampusFlow
+            </div>
+            <ul class="nav-links">
+                <li><a href="#events" class="nav-link active">Events</a></li>
+                <li><a href="#my-registrations" class="nav-link">My Passes</a></li>
+                <li><a href="admin.html" class="btn btn-outline-gold">Admin</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="hero-section">
+        <div class="container">
+            <span class="hero-label">2026 Semester Events</span>
+            <h1 class="hero-title">One campus.<br>Every event.</h1>
+            <p class="hero-description">
+                Register for hackathons, workshops, cultural nights, and sports meets —
+                seats update in real time as students register.
+            </p>
+            <div class="hero-actions">
+                <a href="#events" class="btn btn-primary">Browse Events</a>
+                <a href="admin.html" class="btn btn-secondary">Admin Dashboard</a>
+            </div>
+        </div>
+    </section>
+
+    <main class="container" id="events">
+
+        <div class="controls-bar">
+            <div class="search-input-wrapper">
+                <span class="search-icon">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </span>
+                <input type="text" id="eventSearch" placeholder="Search events…">
+            </div>
+            <div class="filter-group">
+                <select class="select-custom" id="categoryFilter">
+                    <option value="All">All categories</option>
+                </select>
+                <select class="select-custom" id="sortFilter">
+                    <option value="date-asc">Date: earliest first</option>
+                    <option value="date-desc">Date: latest first</option>
+                    <option value="seats-desc">Most seats available</option>
+                    <option value="fee-asc">Fee: low to high</option>
+                </select>
+            </div>
+        </div>
+
+        <section class="events-section">
+            <div class="section-header">
+                <h2 class="section-title">Upcoming Events</h2>
+            </div>
+            <div class="events-grid" id="eventsGrid">
+                <!-- Dynamic event cards -->
+            </div>
+        </section>
+
+        <section id="my-registrations" class="registrations-section">
+            <div class="section-header">
+                <h2 class="section-title">My Registrations</h2>
+                <span class="section-count">Your event passes</span>
+            </div>
+            <div class="registrations-grid" id="myRegistrationsGrid">
+                <!-- Dynamic registration cards -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Registration Modal -->
+    <div class="modal-backdrop" id="registrationModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div>
+                    <div style="font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Register</div>
+                    <h3 class="modal-title" id="modalEventTitle">Event</h3>
+                </div>
+                <button class="close-btn" onclick="closeRegistrationModal()">&times;</button>
+            </div>
+
+            <div style="background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: var(--text-2);">
+                <div><span style="color: var(--text-3);">Venue</span><br><strong id="modalEventVenue" style="color: var(--text);">—</strong></div>
+                <div><span style="color: var(--text-3);">Date</span><br><strong id="modalEventDate" style="color: var(--text);">—</strong></div>
+                <div style="grid-column: 1 / -1;"><span style="color: var(--text-3);">Registration Fee</span> — <strong id="modalEventFee" style="color: var(--accent);">—</strong></div>
+            </div>
+
+            <form id="registrationForm">
+                <input type="hidden" id="modalEventId">
+                <div class="form-group">
+                    <label for="studentName">Full Name</label>
+                    <input type="text" id="studentName" class="form-control" placeholder="e.g. Alex Kumar" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerNumber">Register / Roll Number</label>
+                    <input type="text" id="registerNumber" class="form-control" placeholder="e.g. 23CSE042" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="studentEmail">Email</label>
+                        <input type="email" id="studentEmail" class="form-control" placeholder="you@campus.edu" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="studentPhone">Phone</label>
+                        <input type="tel" id="studentPhone" class="form-control" placeholder="10-digit number" required>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeRegistrationModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Confirm Registration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>CampusFlow &mdash; All data stored locally in your browser. No backend.</p>
+        </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/validation.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/registration.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/app.js"></script>
+
+</body>
+</html>
